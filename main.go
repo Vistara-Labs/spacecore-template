@@ -2,22 +2,17 @@ package main
 
 import (
 	"log"
-	"spaceco/pkg/config"
 
 	"github.com/hashicorp/go-plugin"
 )
 
 func main() {
-	log.Println("Plugin starting...")
-	hConfig := config.HandshakeConfig
-	pluginMap := config.PluginMap
-
+	// Serve the plugin
 	plugin.Serve(&plugin.ServeConfig{
-		HandshakeConfig: hConfig,
-		Plugins:         pluginMap,
+		HandshakeConfig: HandshakeConfig,
+		Plugins:         PluginMap,
 		GRPCServer:      plugin.DefaultGRPCServer,
 	})
-
 	log.Println("Plugin server started successfully.")
 	select {}
 }
