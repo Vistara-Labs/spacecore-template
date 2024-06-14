@@ -62,7 +62,7 @@ func (g *GRPCServer) Status(ctx context.Context, in *proto.StatusRequest) (*prot
 	return &proto.StatusResponse{Status: msg}, err
 }
 func (g *GRPCServer) Logs(ctx context.Context, in *proto.LogsRequest) (*proto.LogsResponse, error) {
-	msg, err := g.Impl.Start(context.Background())
+	msg, err := g.Impl.Logs(context.Background())
 	log.Printf("Checking Spacecore logs...\n %s", msg)
 	if err != nil {
 		return nil, err
