@@ -21,6 +21,9 @@ go build -v -o bin/spaceco
 
 If you try to run the binary, you will get an error message that says the binary is a go plugin and cannot be executed directly without a client. Vimana will act as a gRPC client that connects to gRPC server running in the plugin and executes the methods.
 
+## Usage
+Implement Start(), Stop(), Status(), Logs() methods for your spacecore in the plugin.go file. 
+
 
 ## Integration with Vimana CLI
 
