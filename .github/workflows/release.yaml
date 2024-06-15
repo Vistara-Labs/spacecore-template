@@ -24,16 +24,6 @@ jobs:
         run: |
           go build -o ${{ env.SPACECORE_BINARY }}
 
-      - name: Create release
-        uses: softprops/action-gh-release@v1
-        with:
-          files: ${{ env.SPACECORE_BINARY }}
-          token: ${{ secrets.GITHUB_TOKEN }}
-          release_name: ${{ github.sha }}
-          body: |
-            Changes in this Release:
-            - Initial release
-
       - name: Upload binary
         uses: actions/upload-artifact@v2
         with:
