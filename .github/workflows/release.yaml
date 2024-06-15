@@ -24,23 +24,27 @@ jobs:
         run: |
           go build -o ${{ env.SPACECORE_BINARY }}
 
-      - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.PAT }}
+      - name: Create release
+        uses: softprops/action-gh-release@v1
         with:
-          tag_name: v${{ github.run_number }}
-          release_name: Release v${{ github.run_number }}
-          draft: false
-          prerelease: false
+          files: ${{ env.SPACECORE_BINARY }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+          release_name: ${{ github.sha }}
+          body: |
+            Changes in this Release:
+            - Initial release
 
-      - name: Upload Release Asset
+      - name: Upload binary
+        uses: actions/upload-artifact@v2
+        with:
+          name: ${{ env.SPACECORE_BINARY }}
+
+      - name: Upload release
         uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: ./spacecore-ipfs
-          asset_name: spacecore-ipfs
+          asset_path: ${{ env.SPACECORE_BINARY }}
+          asset_name: ${{ env.SPACECORE_BINARY }}
           asset_content_type: application/octet-stream
+          token: ${{ secrets.GITHUB_TOKEN }}
+
