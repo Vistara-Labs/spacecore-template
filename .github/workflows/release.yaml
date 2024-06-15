@@ -24,11 +24,6 @@ jobs:
         run: |
           go build -o ${{ env.SPACECORE_BINARY }}
 
-      - name: Upload binary
-        uses: actions/upload-artifact@v2
-        with:
-          name: ${{ env.SPACECORE_BINARY }}
-
       - name: Upload release
         uses: actions/upload-release-asset@v1
         with:
@@ -37,4 +32,9 @@ jobs:
           asset_name: ${{ env.SPACECORE_BINARY }}
           asset_content_type: application/octet-stream
           token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Upload binary
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.SPACECORE_BINARY }}
 
