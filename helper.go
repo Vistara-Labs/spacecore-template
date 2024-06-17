@@ -2,13 +2,54 @@ package main
 
 import (
 	"context"
+	"embed"
 	"fmt"
 	"io/ioutil"
+	"log"
 	"os"
 	"os/exec"
 
+	"github.com/BurntSushi/toml"
 	"github.com/sirupsen/logrus"
 )
+
+//go:embed hac.toml
+var configData embed.FS
+
+type HACConfig struct {
+	Spacecore struct {
+		ContainerImage string `toml:"container_image"`
+		Backend        string `toml:"backend"`
+	} `toml:"spacecore"`
+	Commands struct {
+		Start  string
+		Stop   string
+		Status string
+		Logs   string
+	}
+}
+
+func loadConfig() (HACConfig, error) {
+	var config HACConfig
+
+	cData, err := configData.ReadFile("hac.toml")
+	if err != nil {
+		return HACConfig{}, err
+	}
+
+	if _, err := toml.Decode(string(cData), &config); err != nil {
+		log.Printf("Error loading hac.toml: %v\n", err)
+		return HACConfig{}, err
+	}
+	log.Printf("Loaded config : %v\n", config)
+	return config, nil
+}
+
+func executeCommand(cmdStr string) (string, error) {
+	cmd := exec.Command("sh", "-c", cmdStr)
+	output, err := cmd.CombinedOutput()
+	return string(output), err
+}
 
 func setupSpacecoreLogger() (*logrus.Entry, *os.File, error) {
 	logFile, err := os.OpenFile("/tmp/spacecore.log", os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)

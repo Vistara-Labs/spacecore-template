@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log"
+	"os/exec"
 	"spaceco/proto"
 
 	"github.com/hashicorp/go-plugin"
@@ -20,28 +22,89 @@ var HandshakeConfig = plugin.HandshakeConfig{
 	MagicCookieValue: "v1",
 }
 
-type SpacecorePlugin struct{}
+// Extend SpacecorePlugin to include pluginId and demoCmd fields
+type SpacecorePluginImpl struct {
+	demoCmd  *exec.Cmd
+	demoLogs string
+	pid      int
+}
 
-// Define the plugin implementation
+type SpacecorePlugin struct {
+	SpacecorePluginImpl
+}
+
 type Spacecore struct {
 	plugin.Plugin
 	plugin.GRPCPlugin
 	Impl *SpacecorePlugin
 }
 
-// GRPCServer function
 type GRPCServer struct {
-	Impl SpacecorePlugin
+	Config HACConfig
+	Impl   SpacecorePlugin
 }
 
-// GRPCServer function
 func (g *Spacecore) GRPCServer(broker *plugin.GRPCBroker, s *grpc.Server) error {
 	proto.RegisterScPluginServer(s, &GRPCServer{Impl: *g.Impl})
 	return nil
 }
 
+// let's think about hierarchy in configs. We want to use commands start, stop, status, logs from hac.toml if specified
+// if hac.commands not specified, we want to use the default commands from the plugin
+// if hac.commands are specified, we want to use them, if containerd backend is specified,
+// containerd image exists and commands not specified, the plugin should run the container image
+// if containerd backend is specified, containerd image exists and commands are specified, the plugin should run the commands
+func (g *GRPCServer) validateHacConfig(hac HACConfig) error {
+	if hac.Spacecore.Backend != "binary" && hac.Spacecore.ContainerImage == "" {
+		return errors.New("container_image is required in hac.toml")
+	}
+
+	if hac.Spacecore.ContainerImage == "containerd" && hac.Commands.Start == "" {
+		// for now, if using containerd, we need to specify the commands
+		log.Printf("HAC config: %v\n", hac)
+		if hac.Commands.Start == "" {
+			return errors.New("start command is required in hac.toml")
+		}
+		if hac.Commands.Stop == "" {
+			return errors.New("stop command is required in hac.toml")
+		}
+		if hac.Commands.Status == "" {
+			return errors.New("status command is required in hac.toml")
+		}
+		if hac.Commands.Logs == "" {
+			return errors.New("logs command is required in hac.toml")
+		}
+	}
+	return nil
+}
+
+// WIP - this function is not complete
+func (g *GRPCServer) useHacCommands(hac HACConfig, cmd string) (string, error) {
+	if hac.Spacecore.Backend == "containerd" && cmd != "" {
+		output, err := executeCommand(cmd)
+		log.Printf("output from HAC commands: %s\n %s", output, err)
+		if err != nil {
+			return "", err
+		}
+		return output, nil
+	}
+
+	return "", nil
+}
+
 func (g *GRPCServer) Start(ctx context.Context, in *proto.StartRequest) (*proto.StartResponse, error) {
 	log.Printf("Starting Spacecore...\n")
+	hac, _ := loadConfig()
+	if hac.Spacecore.Backend == "containerd" {
+		if err := g.validateHacConfig(hac); err != nil {
+			return nil, err
+		}
+		// runs docker on Mac. Linux uses runc or nerdctl to run containerd images
+		output, _ := g.useHacCommands(hac, hac.Commands.Start)
+		if output != "" {
+			return &proto.StartResponse{Status: output}, nil
+		}
+	}
 	msg, err := g.Impl.Start(ctx)
 	if err != nil {
 		return nil, err
@@ -50,6 +113,12 @@ func (g *GRPCServer) Start(ctx context.Context, in *proto.StartRequest) (*proto.
 }
 
 func (g *GRPCServer) Stop(ctx context.Context, in *proto.StopRequest) (*proto.StopResponse, error) {
+	hac, err := loadConfig()
+	output, _ := g.useHacCommands(hac, hac.Commands.Stop)
+	if output != "" {
+		return &proto.StopResponse{Status: output}, nil
+	}
+
 	msg, err := g.Impl.Stop(context.Background())
 	if err != nil {
 		return nil, err
@@ -58,10 +127,22 @@ func (g *GRPCServer) Stop(ctx context.Context, in *proto.StopRequest) (*proto.St
 }
 func (g *GRPCServer) Status(ctx context.Context, in *proto.StatusRequest) (*proto.StatusResponse, error) {
 	log.Printf("Checking Spacecore status...\n")
+	hac, _ := loadConfig()
+	output, _ := g.useHacCommands(hac, hac.Commands.Status)
+	if output != "" {
+		return &proto.StatusResponse{Status: output}, nil
+	}
+
 	msg, err := g.Impl.Status(ctx)
 	return &proto.StatusResponse{Status: msg}, err
 }
 func (g *GRPCServer) Logs(ctx context.Context, in *proto.LogsRequest) (*proto.LogsResponse, error) {
+	hac, _ := loadConfig()
+	output, _ := g.useHacCommands(hac, hac.Commands.Logs)
+	if output != "" {
+		return &proto.LogsResponse{Logs: []string{output}}, nil
+	}
+
 	msg, err := g.Impl.Logs(context.Background())
 	log.Printf("Checking Spacecore logs...\n %s", msg)
 	if err != nil {
